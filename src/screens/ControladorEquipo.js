@@ -62,8 +62,8 @@ const ControladorEquipo = () => {
     try {
       const db = await SQLite.openDatabaseAsync('koru.db');
       const resultEquipo = await db.runAsync(
-        `INSERT INTO Equipo (nombre, tag, juego, capitan_id, descripcion, objetivos, ambiente, nivel, requisitos) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [nombreEquipo, tagEquipo.toUpperCase(), juegoEquipo, usuarioActivo.id, descEquipo, objetivoEquipo, ambienteEquipo, nivelEquipo, requisitosEquipo]
+        `INSERT INTO Equipo (nombre, tag, juego, capitan_id, descripcion, objetivos, ambiente, nivel, requisitos, reclutamientoAbierto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [nombreEquipo, tagEquipo.toUpperCase(), juegoEquipo, usuarioActivo.id, descEquipo, objetivoEquipo, ambienteEquipo, nivelEquipo, requisitosEquipo, 1]
       );
       const nuevoEquipoId = resultEquipo.lastInsertRowId;
       await db.runAsync(

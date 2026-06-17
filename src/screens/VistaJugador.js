@@ -48,6 +48,7 @@ const VistaJugador = ({ misEquipos = [], limiteAlcanzado = false }) => {
         { text: "Sí, Enviar", onPress: async () => {
             try {
               const db = await SQLite.openDatabaseAsync('koru.db');
+              await db.runAsync("UPDATE Postulacion SET estado = 'Pendiente' WHERE usuario_id = ? AND equipo_id = ? AND estado IS NULL", [usuarioActivo.id, equipo.id]);
               const pendiente = await db.getFirstAsync("SELECT * FROM Postulacion WHERE usuario_id = ? AND equipo_id = ? AND estado = 'Pendiente'", [usuarioActivo.id, equipo.id]);
               if (pendiente) return Alert.alert("Aviso", "Ya tienes una postulación pendiente en este equipo.");
 
@@ -55,14 +56,15 @@ const VistaJugador = ({ misEquipos = [], limiteAlcanzado = false }) => {
               if (rechazada) {
                 await db.runAsync("UPDATE Postulacion SET estado = 'Pendiente', rol_postulado = ? WHERE id = ?", [usuarioActivo.rolPrimario, rechazada.id]);
               } else {
-                await db.runAsync('INSERT INTO Postulacion (usuario_id, equipo_id, rol_postulado) VALUES (?, ?, ?)', [usuarioActivo.id, equipo.id, usuarioActivo.rolPrimario]);
+                await db.runAsync('INSERT INTO Postulacion (usuario_id, equipo_id, rol_postulado, estado) VALUES (?, ?, ?, ?)', [usuarioActivo.id, equipo.id, usuarioActivo.rolPrimario, 'Pendiente']);
               }
               
-              Alert.alert("¡Éxito!", "Postulación enviada al capitán.");
+              Alert.alert("Postulación enviada", "Tu solicitud quedó pendiente para revisión del líder.");
               const actualizadas = await db.getAllAsync(`SELECT p.*, e.nombre as equipo_nombre FROM Postulacion p JOIN Equipo e ON p.equipo_id = e.id WHERE p.usuario_id = ?`, [usuarioActivo.id]);
               setMisPostulaciones(actualizadas);
             } catch (error) {
-              Alert.alert("Error", "No se pudo enviar la postulación.");
+              console.error(error);
+              Alert.alert("No se pudo enviar", "Ocurrió un problema al registrar tu postulación. Inténtalo nuevamente.");
             }
           } 
         }

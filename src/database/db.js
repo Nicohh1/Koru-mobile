@@ -28,10 +28,14 @@ export const iniciarBaseDeDatos = async () => {
 
     // Creación de la estructura base (Solo se ejecuta si las tablas no existen)
     await db.execAsync('CREATE TABLE IF NOT EXISTS "Perfil" (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT UNIQUE, password TEXT, nombre TEXT NOT NULL, rolPrimario TEXT, rolSecundario TEXT, juegoPrincipal TEXT);');
-    await db.execAsync('CREATE TABLE IF NOT EXISTS "Equipo" (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tag TEXT, juego TEXT NOT NULL, capitan_id INTEGER, descripcion TEXT, objetivos TEXT, ambiente TEXT, nivel TEXT, requisitos TEXT, privacidad TEXT, reclutamientoAbierto INTEGER);');
+    await db.execAsync('CREATE TABLE IF NOT EXISTS "Equipo" (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL, tag TEXT, juego TEXT NOT NULL, capitan_id INTEGER, descripcion TEXT, objetivos TEXT, ambiente TEXT, nivel TEXT, requisitos TEXT, privacidad TEXT, reclutamientoAbierto INTEGER DEFAULT 1);');
     await db.execAsync('CREATE TABLE IF NOT EXISTS "Jugador_Equipo" (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, equipo_id INTEGER NOT NULL, rol_equipo TEXT, es_capitan INTEGER, asistencia_torneo TEXT);');
-    await db.execAsync('CREATE TABLE IF NOT EXISTS "Postulacion" (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, equipo_id INTEGER NOT NULL, rol_postulado TEXT NOT NULL, estado TEXT);');
+    await db.execAsync('CREATE TABLE IF NOT EXISTS "Postulacion" (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario_id INTEGER NOT NULL, equipo_id INTEGER NOT NULL, rol_postulado TEXT NOT NULL, estado TEXT DEFAULT "Pendiente");');
     await db.execAsync('CREATE TABLE IF NOT EXISTS "Sugerencia" (id INTEGER PRIMARY KEY AUTOINCREMENT, equipo_id INTEGER NOT NULL, sugeridor_id INTEGER NOT NULL, sugerido_id INTEGER NOT NULL, estado TEXT);');
+
+    // Compatibilidad con datos existentes: antes algunas postulaciones se guardaban sin estado.
+    await db.runAsync('UPDATE "Postulacion" SET estado = ? WHERE estado IS NULL', ['Pendiente']);
+    await db.runAsync('UPDATE "Equipo" SET reclutamientoAbierto = ? WHERE reclutamientoAbierto IS NULL', [1]);
 
     // Guardamos la instancia de forma global
     dbInstancia = db;
