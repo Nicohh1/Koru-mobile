@@ -35,11 +35,18 @@ export type PlayerMatch = {
   other_profile: RemoteProfile;
 };
 
+export const CANDIDATE_COOLDOWN_MINUTES = 5;
+
 type MatchRow = {
   id: string;
   profile_a_id: string;
   profile_b_id: string;
   created_at: string | null;
+};
+
+type RecentSwipeRow = {
+  swiped_profile_id: string;
+  updated_at: string;
 };
 
 const normalizeSwipeAction = (action: SwipeAction): 'like' | 'reject' => {
@@ -98,17 +105,56 @@ export async function fetchCandidateProfiles(remoteProfileId: string): Promise<R
     throw new Error('No se pueden cargar candidatos sin un perfil remoto sincronizado.');
   }
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('id, local_username, display_name, local_sqlite_id, primary_game, primary_role, secondary_role, avatar_url, created_at, updated_at')
-    .neq('id', remoteProfileId)
-    .order('created_at', { ascending: true });
+  const cooldownStartedAt = new Date(
+    Date.now() - CANDIDATE_COOLDOWN_MINUTES * 60 * 1000,
+  ).toISOString();
 
-  if (error) {
-    throw new Error(`No se pudieron cargar candidatos remotos: ${error.message}`);
+  const [recentSwipesResult, matchesResult, profilesResult] = await Promise.all([
+    supabase
+      .from('player_swipes')
+      .select('swiped_profile_id, updated_at')
+      .eq('swiper_profile_id', remoteProfileId)
+      .in('action', ['like', 'reject'])
+      .gte('updated_at', cooldownStartedAt),
+    supabase
+      .from('matches')
+      .select('profile_a_id, profile_b_id')
+      .or(`profile_a_id.eq.${remoteProfileId},profile_b_id.eq.${remoteProfileId}`),
+    supabase
+      .from('profiles')
+      .select('id, local_username, display_name, local_sqlite_id, primary_game, primary_role, secondary_role, avatar_url, created_at, updated_at')
+      .neq('id', remoteProfileId)
+      .order('created_at', { ascending: true }),
+  ]);
+
+  if (recentSwipesResult.error) {
+    throw new Error(`No se pudieron revisar tus decisiones recientes: ${recentSwipesResult.error.message}`);
   }
 
-  return (data ?? []) as RemoteProfile[];
+  if (matchesResult.error) {
+    throw new Error(`No se pudieron revisar tus matches activos: ${matchesResult.error.message}`);
+  }
+
+  if (profilesResult.error) {
+    throw new Error(`No se pudieron cargar candidatos remotos: ${profilesResult.error.message}`);
+  }
+
+  const excludedProfileIds = new Set<string>([remoteProfileId]);
+
+  ((recentSwipesResult.data ?? []) as RecentSwipeRow[]).forEach((swipe) => {
+    excludedProfileIds.add(swipe.swiped_profile_id);
+  });
+
+  ((matchesResult.data ?? []) as Pick<MatchRow, 'profile_a_id' | 'profile_b_id'>[])
+    .forEach((match) => {
+      const otherProfileId = match.profile_a_id === remoteProfileId
+        ? match.profile_b_id
+        : match.profile_a_id;
+      excludedProfileIds.add(otherProfileId);
+    });
+
+  return ((profilesResult.data ?? []) as RemoteProfile[])
+    .filter((profile) => !excludedProfileIds.has(profile.id));
 }
 
 export async function recordSwipe(
