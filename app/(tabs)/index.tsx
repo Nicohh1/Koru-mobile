@@ -5,6 +5,7 @@ import { ActivityIndicator, Dimensions, Modal, SafeAreaView, ScrollView, StyleSh
 import Swiper from 'react-native-deck-swiper';
 
 import { MatchCard } from '../../components/MatchCard';
+import { MatchFoundModal } from '../../components/MatchFoundModal';
 import { COLORS } from '../../constants/theme';
 import { useMatchmaking } from '../../hooks/useMatchmaking';
 
@@ -122,8 +123,9 @@ export default function MatchScreen() {
   // Consumo de lógica de negocio desacoplada mediante un custom hook especializado
   const { 
     currentProfile, PLAYER_PROFILES, swiperRef, handleNextProfile, 
-    isQueueEmpty, resetFilter, isLoading, 
-    filtrosActivos, setFiltrosActivos, matchmakingError
+    isQueueEmpty, resetFilter, isLoading, isSubmittingSwipe,
+    filtrosActivos, setFiltrosActivos, matchmakingError,
+    matchedProfile, requestSwipe, closeMatchModal,
   } = useMatchmaking();
 
   const router = useRouter();
@@ -149,6 +151,11 @@ export default function MatchScreen() {
         <TouchableOpacity style={styles.resetDemoButton} onPress={resetFilter}>
           <Text style={styles.resetDemoText}>Reiniciar Búsqueda</Text>
         </TouchableOpacity>
+        <MatchFoundModal
+          onClose={closeMatchModal}
+          profile={matchedProfile}
+          visible={Boolean(matchedProfile)}
+        />
       </SafeAreaView>
     );
   }
@@ -173,15 +180,25 @@ export default function MatchScreen() {
         </TouchableOpacity>
       </View>
 
+      {matchmakingError ? (
+        <View style={styles.swipeErrorBanner}>
+          <Text style={styles.swipeErrorText}>{matchmakingError}</Text>
+        </View>
+      ) : null}
+
       {/* MAZO DE CARTAS DESLIZABLES (DECK SWIPER) */}
       <View style={styles.deckSwiperContainer}>
         <Swiper
           ref={swiperRef}
           cards={PLAYER_PROFILES}
           // Manejo de gestos nativos: Deslizar izquierda ejecuta la lógica de rechazo
-          onSwipedLeft={() => handleNextProfile('Rechazar')}
+          onSwipedLeft={(cardIndex) => handleNextProfile('Rechazar', cardIndex)}
           // Deslizar derecha ejecuta la lógica de aceptación/interés
-          onSwipedRight={() => handleNextProfile('Aceptar')}
+          onSwipedRight={(cardIndex) => handleNextProfile('Aceptar', cardIndex)}
+          disableBottomSwipe
+          disableLeftSwipe={isSubmittingSwipe}
+          disableRightSwipe={isSubmittingSwipe}
+          disableTopSwipe
           stackSize={3} // Cantidad de tarjetas renderizadas en cascada en el fondo
           stackScale={1}
           stackSeparation={3}
@@ -194,12 +211,22 @@ export default function MatchScreen() {
             return <MatchCard card={card} />;
           }}
         />
+        {isSubmittingSwipe ? (
+          <View style={styles.swipeLoadingOverlay}>
+            <ActivityIndicator color={COLORS.blue} size="large" />
+            <Text style={styles.swipeLoadingText}>Guardando tu decision...</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* BOTONES DE ACCIÓN: RECHAZAR */}
       <View style={styles.actionButtonsRow}>
         <View style={styles.actionButtonWrapper}>
-          <TouchableOpacity style={styles.circleActionButtonGlowRed} onPress={() => swiperRef.current?.swipeLeft()}>
+          <TouchableOpacity
+            disabled={isSubmittingSwipe}
+            onPress={() => requestSwipe('Rechazar')}
+            style={[styles.circleActionButtonGlowRed, isSubmittingSwipe && styles.actionButtonDisabled]}
+          >
             <X color={COLORS.actionRed} size={32} />
           </TouchableOpacity>
           <Text style={styles.actionLabelTextRed}>RECHAZAR</Text>
@@ -224,7 +251,11 @@ export default function MatchScreen() {
 
         {/* BOTÓN: ACEPTAR */}
         <View style={styles.actionButtonWrapper}>
-          <TouchableOpacity style={styles.circleActionButtonGlowBlue} onPress={() => swiperRef.current?.swipeRight()}>
+          <TouchableOpacity
+            disabled={isSubmittingSwipe}
+            onPress={() => requestSwipe('Aceptar')}
+            style={[styles.circleActionButtonGlowBlue, isSubmittingSwipe && styles.actionButtonDisabled]}
+          >
             <Heart color={COLORS.blue} size={32} />
           </TouchableOpacity>
           <Text style={styles.actionLabelTextBlue}>ACEPTAR</Text>
@@ -239,6 +270,11 @@ export default function MatchScreen() {
         currentFilters={filtrosActivos}
         onApply={setFiltrosActivos}
         resetFilter={resetFilter}
+      />
+      <MatchFoundModal
+        onClose={closeMatchModal}
+        profile={matchedProfile}
+        visible={Boolean(matchedProfile)}
       />
     </SafeAreaView>
   );
@@ -257,12 +293,16 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.textMain, letterSpacing: 1 },
   headerSubtitle: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
   headerIconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  swipeErrorBanner: { backgroundColor: 'rgba(232, 34, 96, 0.15)', borderColor: COLORS.actionRed, borderWidth: 1, marginHorizontal: 15, padding: 10 },
+  swipeErrorText: { color: COLORS.textMain, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   
   deckSwiperContainer: { 
     flex: 1, 
     marginTop: -25,
     marginBottom: 130
   },
+  swipeLoadingOverlay: { alignItems: 'center', backgroundColor: COLORS.background, bottom: 0, justifyContent: 'center', left: 0, position: 'absolute', right: 0, top: 0, zIndex: 200 },
+  swipeLoadingText: { color: COLORS.textMain, fontSize: 14, fontWeight: '600', marginTop: 12 },
   
   actionButtonsRow: { 
     flexDirection: 'row', 
@@ -276,6 +316,7 @@ const styles = StyleSheet.create({
   
   // Estilos con sombras difuminadas (Glow effects) imitando interfaces estéticas Cyberpunk/Gamer
   actionButtonWrapper: { alignItems: 'center', width: 90 },
+  actionButtonDisabled: { opacity: 0.45 },
   circleActionButtonGlowRed: { width: 65, height: 65, borderRadius: 32.5, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.actionRed, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 10, elevation: 6, borderColor: COLORS.actionRed, borderWidth: 1 },
   actionLabelTextRed: { fontSize: 10, fontWeight: '800', marginTop: 10, letterSpacing: 1, color: COLORS.actionRed },
   circleActionButtonGlowPurple: { width: 65, height: 65, borderRadius: 32.5, backgroundColor: COLORS.background, justifyContent: 'center', alignItems: 'center', shadowColor: COLORS.purple, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.6, shadowRadius: 10, elevation: 6, borderColor: COLORS.purple, borderWidth: 1 },

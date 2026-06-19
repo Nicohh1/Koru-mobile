@@ -22,6 +22,27 @@ export type RemoteProfile = {
   updated_at?: string;
 };
 
+export type SwipeAction = 'Aceptar' | 'Rechazar' | 'like' | 'reject' | 'right' | 'left';
+
+export type RecordSwipeResult = {
+  is_match: boolean;
+  match_id: string | null;
+};
+
+const normalizeSwipeAction = (action: SwipeAction): 'like' | 'reject' => {
+  const normalizedAction = action.toLowerCase();
+
+  if (normalizedAction === 'aceptar' || normalizedAction === 'like' || normalizedAction === 'right') {
+    return 'like';
+  }
+
+  if (normalizedAction === 'rechazar' || normalizedAction === 'reject' || normalizedAction === 'left') {
+    return 'reject';
+  }
+
+  throw new Error('La decision de matchmaking no es valida.');
+};
+
 export async function syncRemoteProfile(usuarioActivo: LocalActiveUser): Promise<RemoteProfile> {
   const localUsername = usuarioActivo?.usuario?.trim();
 
@@ -75,4 +96,42 @@ export async function fetchCandidateProfiles(remoteProfileId: string): Promise<R
   }
 
   return (data ?? []) as RemoteProfile[];
+}
+
+export async function recordSwipe(
+  swiperProfileId: string,
+  swipedProfileId: string,
+  action: SwipeAction,
+): Promise<RecordSwipeResult> {
+  if (!swiperProfileId || !swipedProfileId) {
+    throw new Error('No se pudo identificar a los jugadores de esta decision.');
+  }
+
+  if (swiperProfileId === swipedProfileId) {
+    throw new Error('No puedes registrar una decision sobre tu propio perfil.');
+  }
+
+  const normalizedAction = normalizeSwipeAction(action);
+  const { data, error } = await supabase.rpc('record_player_swipe', {
+    p_swiper_profile_id: swiperProfileId,
+    p_swiped_profile_id: swipedProfileId,
+    p_action: normalizedAction,
+  });
+
+  if (error) {
+    throw new Error(`No se pudo guardar tu decision: ${error.message}`);
+  }
+
+  const rpcResult = Array.isArray(data) ? data[0] : data;
+
+  if (!rpcResult || typeof rpcResult !== 'object') {
+    return { is_match: false, match_id: null };
+  }
+
+  const result = rpcResult as { is_match?: boolean; match_id?: string | null };
+
+  return {
+    is_match: result.is_match === true,
+    match_id: typeof result.match_id === 'string' ? result.match_id : null,
+  };
 }
