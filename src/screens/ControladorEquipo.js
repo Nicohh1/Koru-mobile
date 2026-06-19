@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import * as SQLite from 'expo-sqlite';
 import React, { useCallback, useContext, useState } from 'react';
 import { Alert, Keyboard, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { iniciarBaseDeDatos } from '../database/db';
 
 import GestionEquipo from './GestionEquipo';
 import VistaJugador from './VistaJugador';
@@ -35,7 +35,7 @@ const ControladorEquipo = () => {
     if (!usuarioActivo?.id) return; 
 
     try {
-      const db = await SQLite.openDatabaseAsync('koru.db');
+      const db = await iniciarBaseDeDatos();
       const data = await db.getAllAsync(`
         SELECT e.*, je.rol_equipo, je.es_capitan, je.asistencia_torneo
         FROM Equipo e JOIN Jugador_Equipo je ON e.id = je.equipo_id
@@ -60,7 +60,7 @@ const ControladorEquipo = () => {
   const registrarEquipoEnBD = async () => {
     if (nombreEquipo.trim() === '' || tagEquipo.trim() === '') return Alert.alert('Error', 'Nombre y Tag obligatorios.');
     try {
-      const db = await SQLite.openDatabaseAsync('koru.db');
+      const db = await iniciarBaseDeDatos();
       const resultEquipo = await db.runAsync(
         `INSERT INTO Equipo (nombre, tag, juego, capitan_id, descripcion, objetivos, ambiente, nivel, requisitos, reclutamientoAbierto) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [nombreEquipo, tagEquipo.toUpperCase(), juegoEquipo, usuarioActivo.id, descEquipo, objetivoEquipo, ambienteEquipo, nivelEquipo, requisitosEquipo, 1]

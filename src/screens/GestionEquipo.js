@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
-import * as SQLite from 'expo-sqlite';
 import React, { useCallback, useContext, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { iniciarBaseDeDatos } from '../database/db';
 
 const COLORES = { 
   fondo: '#0B1120', cards: '#1E293B', botonPrincipal: '#8B5CF6', 
@@ -46,7 +46,7 @@ const GestionEquipo = ({ dataPuente, volver }) => {
     if (!dataPuente?.id) return;
 
     try {
-      const db = await SQLite.openDatabaseAsync('koru.db');
+      const db = await iniciarBaseDeDatos();
       await db.runAsync("UPDATE Postulacion SET estado = 'Pendiente' WHERE equipo_id = ? AND estado IS NULL", [dataPuente.id]);
       
       const equipo = await db.getFirstAsync('SELECT * FROM Equipo WHERE id = ?', [dataPuente.id]);
@@ -100,7 +100,7 @@ const GestionEquipo = ({ dataPuente, volver }) => {
     Alert.alert("Acción Irreversible", `¿Estás seguro de confirmar que ${respuesta === 'Sí' ? 'SÍ' : 'NO'} asistirás? Esta decisión no se puede cambiar.`, [
       { text: "Cancelar", style: "cancel" },
       { text: "Confirmar", style: "destructive", onPress: async () => {
-          const db = await SQLite.openDatabaseAsync('koru.db');
+          const db = await iniciarBaseDeDatos();
           await db.runAsync('UPDATE Jugador_Equipo SET asistencia_torneo = ? WHERE usuario_id = ? AND equipo_id = ?', [respuesta, usuarioActivo.id, equipoBD.id]);
           cargarDatos();
       }}
@@ -108,19 +108,19 @@ const GestionEquipo = ({ dataPuente, volver }) => {
   };
 
   const guardarEdicionEquipo = async () => {
-    const db = await SQLite.openDatabaseAsync('koru.db');
+    const db = await iniciarBaseDeDatos();
     await db.runAsync('UPDATE Equipo SET descripcion = ?, nivel = ?, ambiente = ?, objetivos = ?, requisitos = ? WHERE id = ?', [formDesc, formNivel, formAmbiente, formObjetivos, formReq, equipoBD.id]);
     setEditandoInfo(false); cargarDatos();
   };
   
-  const toggleReclutamiento = async (valor) => { setReclutamientoAbierto(valor); const db = await SQLite.openDatabaseAsync('koru.db'); await db.runAsync('UPDATE Equipo SET reclutamientoAbierto = ? WHERE id = ?', [valor ? 1 : 0, equipoBD.id]); };
+  const toggleReclutamiento = async (valor) => { setReclutamientoAbierto(valor); const db = await iniciarBaseDeDatos(); await db.runAsync('UPDATE Equipo SET reclutamientoAbierto = ? WHERE id = ?', [valor ? 1 : 0, equipoBD.id]); };
   
   const toggleRolJugador = async (idJugador, nombreJugador, rolActual) => {
     const nuevoRol = rolActual === 'Titular' ? 'Suplente' : 'Titular';
     let mensaje = `¿Pasar a ${nombreJugador} a ${nuevoRol}?`;
     if (nuevoRol === 'Titular') mensaje += `\n\nATENCIÓN: Al ascender a Titular, será expulsado de otros equipos.`;
     Alert.alert("Cambiar Rol", mensaje, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", onPress: async () => {
-          const db = await SQLite.openDatabaseAsync('koru.db');
+          const db = await iniciarBaseDeDatos();
           if (nuevoRol === 'Titular') await db.runAsync("DELETE FROM Jugador_Equipo WHERE usuario_id = ? AND equipo_id != ?", [idJugador, equipoBD.id]);
           await db.runAsync("UPDATE Jugador_Equipo SET rol_equipo = ? WHERE usuario_id = ? AND equipo_id = ?", [nuevoRol, idJugador, equipoBD.id]);
           cargarDatos(); 
@@ -129,19 +129,19 @@ const GestionEquipo = ({ dataPuente, volver }) => {
   
   const expulsarJugador = (idJugador, nombreJugador) => {
     Alert.alert("Expulsar", `¿Remover a ${nombreJugador}?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", style: "destructive", onPress: async () => {
-          const db = await SQLite.openDatabaseAsync('koru.db');
+          const db = await iniciarBaseDeDatos();
           await db.runAsync("DELETE FROM Jugador_Equipo WHERE usuario_id = ? AND equipo_id = ?", [idJugador, equipoBD.id]);
           await db.runAsync("DELETE FROM Postulacion WHERE usuario_id = ? AND equipo_id = ?", [idJugador, equipoBD.id]);
           cargarDatos(); 
       }}]);
   };
 
-  const confirmarBorrarEquipo = () => { Alert.alert("Eliminar", `¿Disolver "${equipoBD?.nombre}"?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", style: "destructive", onPress: async () => { const db = await SQLite.openDatabaseAsync('koru.db'); await db.runAsync('DELETE FROM Equipo WHERE id = ?', [equipoBD.id]); await db.runAsync('DELETE FROM Jugador_Equipo WHERE equipo_id = ?', [equipoBD.id]); volver(); }}]); };
-  const aceptarJugador = async (postulacion) => { if (integrantes.length >= 5) return Alert.alert("Equipo Lleno", "Límite de 5."); const db = await SQLite.openDatabaseAsync('koru.db'); await db.runAsync("UPDATE Postulacion SET estado = 'Aceptada' WHERE id = ?", [postulacion.id]); await db.runAsync("INSERT INTO Jugador_Equipo (usuario_id, equipo_id, rol_equipo, es_capitan, asistencia_torneo) SELECT ?, ?, 'Suplente', 0, 'Pendiente' WHERE NOT EXISTS (SELECT 1 FROM Jugador_Equipo WHERE usuario_id = ? AND equipo_id = ?)", [postulacion.usuario_id, equipoBD.id, postulacion.usuario_id, equipoBD.id]); Alert.alert("Postulacion aceptada", "El jugador fue agregado al equipo como suplente."); cargarDatos(); };
-  const rechazarJugador = (post) => { Alert.alert("Rechazar", `¿Rechazar a ${post.nombre}?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", style: "destructive", onPress: async () => { const db = await SQLite.openDatabaseAsync('koru.db'); await db.runAsync("UPDATE Postulacion SET estado = 'Rechazada' WHERE id = ?", [post.id]); Alert.alert("Postulacion rechazada", "La solicitud fue rechazada correctamente."); cargarDatos(); }}]); };
+  const confirmarBorrarEquipo = () => { Alert.alert("Eliminar", `¿Disolver "${equipoBD?.nombre}"?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", style: "destructive", onPress: async () => { const db = await iniciarBaseDeDatos(); await db.runAsync('DELETE FROM Equipo WHERE id = ?', [equipoBD.id]); await db.runAsync('DELETE FROM Jugador_Equipo WHERE equipo_id = ?', [equipoBD.id]); volver(); }}]); };
+  const aceptarJugador = async (postulacion) => { if (integrantes.length >= 5) return Alert.alert("Equipo Lleno", "Límite de 5."); const db = await iniciarBaseDeDatos(); await db.runAsync("UPDATE Postulacion SET estado = 'Aceptada' WHERE id = ?", [postulacion.id]); await db.runAsync("INSERT INTO Jugador_Equipo (usuario_id, equipo_id, rol_equipo, es_capitan, asistencia_torneo) SELECT ?, ?, 'Suplente', 0, 'Pendiente' WHERE NOT EXISTS (SELECT 1 FROM Jugador_Equipo WHERE usuario_id = ? AND equipo_id = ?)", [postulacion.usuario_id, equipoBD.id, postulacion.usuario_id, equipoBD.id]); Alert.alert("Postulacion aceptada", "El jugador fue agregado al equipo como suplente."); cargarDatos(); };
+  const rechazarJugador = (post) => { Alert.alert("Rechazar", `¿Rechazar a ${post.nombre}?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", style: "destructive", onPress: async () => { const db = await iniciarBaseDeDatos(); await db.runAsync("UPDATE Postulacion SET estado = 'Rechazada' WHERE id = ?", [post.id]); Alert.alert("Postulacion rechazada", "La solicitud fue rechazada correctamente."); cargarDatos(); }}]); };
   
-  const buscarUsuarios = async () => { if (busquedaUsuario.trim() === '') return; const db = await SQLite.openDatabaseAsync('koru.db'); setResultadosBusqueda(await db.getAllAsync(`SELECT * FROM Perfil WHERE nombre LIKE ? AND juegoPrincipal = ? AND id NOT IN (SELECT usuario_id FROM Jugador_Equipo WHERE equipo_id = ?)`, [`%${busquedaUsuario}%`, equipoBD.juego, equipoBD.id])); };
-  const sugerirJugador = async (jugador) => { Alert.alert("Sugerir", `¿Recomendar a ${jugador.nombre}?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", onPress: async () => { const db = await SQLite.openDatabaseAsync('koru.db'); const existe = await db.getFirstAsync("SELECT * FROM Sugerencia WHERE sugerido_id = ? AND equipo_id = ? AND estado = 'Pendiente'", [jugador.id, equipoBD.id]); if (existe) return Alert.alert("Aviso", "Ya sugerido."); await db.runAsync("INSERT INTO Sugerencia (equipo_id, sugeridor_id, sugerido_id) VALUES (?, ?, ?)", [equipoBD.id, usuarioActivo.id, jugador.id]); Alert.alert("Éxito", "Sugerencia enviada."); setResultadosBusqueda([]); setBusquedaUsuario(''); }}]); };
+  const buscarUsuarios = async () => { if (busquedaUsuario.trim() === '') return; const db = await iniciarBaseDeDatos(); setResultadosBusqueda(await db.getAllAsync(`SELECT * FROM Perfil WHERE nombre LIKE ? AND juegoPrincipal = ? AND id NOT IN (SELECT usuario_id FROM Jugador_Equipo WHERE equipo_id = ?)`, [`%${busquedaUsuario}%`, equipoBD.juego, equipoBD.id])); };
+  const sugerirJugador = async (jugador) => { Alert.alert("Sugerir", `¿Recomendar a ${jugador.nombre}?`, [{ text: "Cancelar", style: "cancel" }, { text: "Sí", onPress: async () => { const db = await iniciarBaseDeDatos(); const existe = await db.getFirstAsync("SELECT * FROM Sugerencia WHERE sugerido_id = ? AND equipo_id = ? AND estado = 'Pendiente'", [jugador.id, equipoBD.id]); if (existe) return Alert.alert("Aviso", "Ya sugerido."); await db.runAsync("INSERT INTO Sugerencia (equipo_id, sugeridor_id, sugerido_id) VALUES (?, ?, ?)", [equipoBD.id, usuarioActivo.id, jugador.id]); Alert.alert("Éxito", "Sugerencia enviada."); setResultadosBusqueda([]); setBusquedaUsuario(''); }}]); };
   
   // FIX: Función real para que el capitán agregue jugadores directamente desde el buscador
   const invitarJugadorDirecto = async (jugador) => {
@@ -149,7 +149,7 @@ const GestionEquipo = ({ dataPuente, volver }) => {
     Alert.alert("Invitar", `¿Añadir a ${jugador.nombre} como suplente?`, [
       { text: "Cancelar", style: "cancel" },
       { text: "Sí, añadir", onPress: async () => {
-          const db = await SQLite.openDatabaseAsync('koru.db');
+          const db = await iniciarBaseDeDatos();
           await db.runAsync("INSERT INTO Jugador_Equipo (usuario_id, equipo_id, rol_equipo) VALUES (?, ?, 'Suplente')", [jugador.id, equipoBD.id]);
           Alert.alert("Éxito", "Jugador añadido al equipo.");
           setResultadosBusqueda([]); setBusquedaUsuario('');
@@ -158,7 +158,7 @@ const GestionEquipo = ({ dataPuente, volver }) => {
     ]);
   };
 
-  const responderSugerencia = async (sugerenciaId, jugadorId, accion) => { const db = await SQLite.openDatabaseAsync('koru.db'); await db.runAsync("UPDATE Sugerencia SET estado = ? WHERE id = ?", [accion === 'Aceptar' ? 'Aceptada' : 'Rechazada', sugerenciaId]); if (accion === 'Aceptar') { if (integrantes.length >= 5) return Alert.alert("Equipo Lleno", "No puedes aceptar más."); await db.runAsync("INSERT INTO Jugador_Equipo (usuario_id, equipo_id, rol_equipo) VALUES (?, ?, 'Suplente')", [jugadorId, equipoBD.id]); Alert.alert("Aceptado", "Jugador añadido como suplente."); } cargarDatos(); };
+  const responderSugerencia = async (sugerenciaId, jugadorId, accion) => { const db = await iniciarBaseDeDatos(); await db.runAsync("UPDATE Sugerencia SET estado = ? WHERE id = ?", [accion === 'Aceptar' ? 'Aceptada' : 'Rechazada', sugerenciaId]); if (accion === 'Aceptar') { if (integrantes.length >= 5) return Alert.alert("Equipo Lleno", "No puedes aceptar más."); await db.runAsync("INSERT INTO Jugador_Equipo (usuario_id, equipo_id, rol_equipo) VALUES (?, ?, 'Suplente')", [jugadorId, equipoBD.id]); Alert.alert("Aceptado", "Jugador añadido como suplente."); } cargarDatos(); };
 
   if (cargando || !equipoBD) return <View style={styles.contenedorCentrado}><ActivityIndicator size="large" color={COLORES.botonPrincipal} /></View>;
 

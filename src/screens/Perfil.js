@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
-import * as SQLite from 'expo-sqlite';
 import React, { useContext, useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { iniciarBaseDeDatos } from '../database/db';
 
 // Paleta premium alineada con el resto de la app
 const COLORES = { fondo: '#0B1120', cards: '#1E293B', botonPrincipal: '#8B5CF6', interactivo: '#06B6D4', textoPrincipal: '#F8FAFC', textoSecundario: '#CBD5E1', exito: '#10B981', peligro: '#EF4444', borde: '#334155' };
@@ -38,7 +38,7 @@ const Perfil = () => {
 
   const guardarPerfil = async () => {
     try {
-      const db = await SQLite.openDatabaseAsync('koru.db');
+      const db = await iniciarBaseDeDatos();
       await db.runAsync('UPDATE Perfil SET nombre = ?, rolPrimario = ?, rolSecundario = ?, juegoPrincipal = ? WHERE id = ?', [nombre, rolPrimario, rolSecundario, juegoPrincipal, usuarioActivo.id]);
       setUsuarioActivo({ ...usuarioActivo, nombre, rolPrimario, rolSecundario, juegoPrincipal });
       Alert.alert("Éxito", "Tus preferencias se guardaron.");

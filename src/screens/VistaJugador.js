@@ -1,8 +1,8 @@
 import { useFocusEffect } from 'expo-router';
-import * as SQLite from 'expo-sqlite';
 import React, { useCallback, useContext, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
+import { iniciarBaseDeDatos } from '../database/db';
 
 const COLORES = { fondo: '#0B1120', cards: '#1E293B', botonPrincipal: '#8B5CF6', interactivo: '#06B6D4', textoPrincipal: '#F8FAFC', textoSecundario: '#CBD5E1', estadoReclutando: '#10B981', estadoCerrado: '#EF4444' };
 
@@ -17,7 +17,7 @@ const VistaJugador = ({ misEquipos = [], limiteAlcanzado = false }) => {
     useCallback(() => {
       const cargarDatos = async () => {
         try {
-          const db = await SQLite.openDatabaseAsync('koru.db');
+          const db = await iniciarBaseDeDatos();
           const query = `SELECT Equipo.*, Perfil.nombre AS capitan_nombre FROM Equipo LEFT JOIN Perfil ON Equipo.capitan_id = Perfil.id`;
           const equipos = await db.getAllAsync(query);
           setEquiposBD(equipos);
@@ -47,7 +47,7 @@ const VistaJugador = ({ misEquipos = [], limiteAlcanzado = false }) => {
         { text: "Cancelar", style: "cancel" },
         { text: "Sí, Enviar", onPress: async () => {
             try {
-              const db = await SQLite.openDatabaseAsync('koru.db');
+              const db = await iniciarBaseDeDatos();
               await db.runAsync("UPDATE Postulacion SET estado = 'Pendiente' WHERE usuario_id = ? AND equipo_id = ? AND estado IS NULL", [usuarioActivo.id, equipo.id]);
               const pendiente = await db.getFirstAsync("SELECT * FROM Postulacion WHERE usuario_id = ? AND equipo_id = ? AND estado = 'Pendiente'", [usuarioActivo.id, equipo.id]);
               if (pendiente) return Alert.alert("Aviso", "Ya tienes una postulación pendiente en este equipo.");
