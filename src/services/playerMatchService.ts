@@ -29,6 +29,19 @@ export type RecordSwipeResult = {
   match_id: string | null;
 };
 
+export type PlayerMatch = {
+  id: string;
+  created_at: string | null;
+  other_profile: RemoteProfile;
+};
+
+type MatchRow = {
+  id: string;
+  profile_a_id: string;
+  profile_b_id: string;
+  created_at: string | null;
+};
+
 const normalizeSwipeAction = (action: SwipeAction): 'like' | 'reject' => {
   const normalizedAction = action.toLowerCase();
 
@@ -134,4 +147,66 @@ export async function recordSwipe(
     is_match: result.is_match === true,
     match_id: typeof result.match_id === 'string' ? result.match_id : null,
   };
+}
+
+export async function fetchMyMatches(remoteProfileId: string): Promise<PlayerMatch[]> {
+  if (!remoteProfileId) {
+    throw new Error('No se pueden cargar matches sin un perfil remoto sincronizado.');
+  }
+
+  const { data: matchData, error: matchError } = await supabase
+    .from('matches')
+    .select('id, profile_a_id, profile_b_id, created_at')
+    .or(`profile_a_id.eq.${remoteProfileId},profile_b_id.eq.${remoteProfileId}`)
+    .order('created_at', { ascending: false });
+
+  if (matchError) {
+    throw new Error(`No se pudieron cargar tus matches: ${matchError.message}`);
+  }
+
+  const matchRows = (matchData ?? []) as MatchRow[];
+
+  if (matchRows.length === 0) {
+    return [];
+  }
+
+  const otherProfileIds = [
+    ...new Set(
+      matchRows.map((match) => (
+        match.profile_a_id === remoteProfileId
+          ? match.profile_b_id
+          : match.profile_a_id
+      )),
+    ),
+  ];
+
+  const { data: profileData, error: profileError } = await supabase
+    .from('profiles')
+    .select('id, local_username, display_name, local_sqlite_id, primary_game, primary_role, secondary_role, avatar_url, created_at, updated_at')
+    .in('id', otherProfileIds);
+
+  if (profileError) {
+    throw new Error(`No se pudieron cargar los perfiles de tus matches: ${profileError.message}`);
+  }
+
+  const profilesById = new Map(
+    ((profileData ?? []) as RemoteProfile[]).map((profile) => [profile.id, profile]),
+  );
+
+  const matchesWithProfiles = matchRows.flatMap((match) => {
+    const otherProfileId = match.profile_a_id === remoteProfileId
+      ? match.profile_b_id
+      : match.profile_a_id;
+    const otherProfile = profilesById.get(otherProfileId);
+
+    return otherProfile
+      ? [{ id: match.id, created_at: match.created_at, other_profile: otherProfile }]
+      : [];
+  });
+
+  if (matchesWithProfiles.length !== matchRows.length) {
+    throw new Error('No se pudieron cargar todos los perfiles asociados a tus matches.');
+  }
+
+  return matchesWithProfiles;
 }
