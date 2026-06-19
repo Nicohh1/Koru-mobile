@@ -1,0 +1,11 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        EXPO_PUBLIC_SUPABASE_URL: "${EXPO_PUBLIC_SUPABASE_URL:?Define EXPO_PUBLIC_SUPABASE_URL in .env}"
+        EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "${EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY:?Define EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY in .env}"
+    ports:
+      - "8080:80"
+    restart: unless-stopped

@@ -1,50 +1,74 @@
-# Welcome to your Expo app 👋
+# KORU Mobile
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Aplicacion Expo SDK 54 con React Native, Expo Router, SQLite para las funciones locales y Supabase para matchmaking remoto.
 
-## Get started
+## Requisitos
 
-1. Install dependencies
+- Node.js 20 o posterior.
+- Docker Desktop con Docker Compose para ejecutar la version web en contenedor.
+- Expo Go para probar Android o iOS.
 
-   ```bash
-   npm install
-   ```
+## Variables de entorno
 
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+Crea el archivo local `.env` desde el ejemplo:
 
 ```bash
-npm run reset-project
+cp .env.example .env
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+En PowerShell puedes usar:
 
-## Learn more
+```powershell
+Copy-Item .env.example .env
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+Completa las variables publicas de Supabase:
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```dotenv
+EXPO_PUBLIC_SUPABASE_URL=https://tu-proyecto.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=tu-clave-publicable
+```
 
-## Join the community
+`.env` es local y no debe subirse al repositorio. Las variables `EXPO_PUBLIC_*` se incorporan al bundle web durante el build, por lo que un cambio requiere reconstruir la imagen.
 
-Join our community of developers creating universal apps.
+## Desarrollo movil
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm ci
+npx expo start
+```
+
+Escanea el codigo QR con Expo Go para abrir la aplicacion en Android o iOS.
+
+## Exportacion web local
+
+```bash
+npm ci
+npx expo export --platform web
+```
+
+La salida estatica se genera en `dist/`.
+
+## Web con Docker
+
+Construye la exportacion de Expo y levanta Nginx:
+
+```bash
+docker compose up --build
+```
+
+Abre [http://localhost:8080](http://localhost:8080/) en el navegador.
+
+Para ejecutar en segundo plano:
+
+```bash
+docker compose up --build -d
+```
+
+Para detener y eliminar los contenedores:
+
+```bash
+docker compose down
+```
+
+El build usa `.env` solamente para pasar las variables publicas como argumentos. El archivo `.env` no se copia a ninguna etapa de la imagen. Nginx sirve `dist/` y redirige las rutas desconocidas a `index.html` para mantener la navegacion de Expo Router.
