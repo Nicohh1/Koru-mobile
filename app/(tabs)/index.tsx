@@ -123,7 +123,7 @@ export default function MatchScreen() {
   const { 
     currentProfile, PLAYER_PROFILES, swiperRef, handleNextProfile, 
     isQueueEmpty, resetFilter, isLoading, 
-    filtrosActivos, setFiltrosActivos
+    filtrosActivos, setFiltrosActivos, matchmakingError
   } = useMatchmaking();
 
   const router = useRouter();
@@ -145,7 +145,7 @@ export default function MatchScreen() {
   if (isQueueEmpty) {
     return (
       <SafeAreaView style={[styles.container, styles.emptyContainer]}>
-        <Text style={styles.emptyText}>No hay más jugadores disponibles por ahora</Text>
+        <Text style={styles.emptyText}>{matchmakingError || 'No hay mas jugadores disponibles por ahora'}</Text>
         <TouchableOpacity style={styles.resetDemoButton} onPress={resetFilter}>
           <Text style={styles.resetDemoText}>Reiniciar Búsqueda</Text>
         </TouchableOpacity>
